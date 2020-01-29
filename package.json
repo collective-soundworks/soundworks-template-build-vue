@@ -2,7 +2,7 @@
   "name": "@soundworks/template-build-vue",
   "authors": [
     "Benjamin Matuszewski",
-    "Joseph Larralde",
+    "Joseph Larralde"
   ],
   "description": "soundworks-template build scripts",
   "license": "BSD-3-Clause",
