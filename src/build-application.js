@@ -98,7 +98,6 @@ function createBrowserWatcher(inputFile, outputFile) {
     input: inputFile,
     plugins: [
       commonjs(),
-      /*
       rollupBabel({
         sourceMaps: true,
         inputSourceMap: true,
@@ -116,7 +115,6 @@ function createBrowserWatcher(inputFile, outputFile) {
           ['@babel/plugin-proposal-class-properties', { loose : true }]
         ]
       }),
-      //*/
       resolve({
         mainFields: ['browser', 'module', 'main'],
         preferBuiltins: false,
@@ -135,7 +133,7 @@ function createBrowserWatcher(inputFile, outputFile) {
         needMap: false, // put this somewhere else ?
       }),
       scss(),
-      // sourcemaps(),
+      sourcemaps(),
     ],
     output: [
       {
