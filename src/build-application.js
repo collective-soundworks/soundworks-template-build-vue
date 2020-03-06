@@ -6,6 +6,7 @@ const fs = require('fs-extra');
 const path = require('path');
 const rollup = require('rollup');
 
+const alias = require('@rollup/plugin-alias');
 const commonjs = require('rollup-plugin-commonjs');
 const rollupBabel = require('rollup-plugin-babel');
 const resolve = require('rollup-plugin-node-resolve');
@@ -14,7 +15,7 @@ const nodeBuiltins = require('rollup-plugin-node-builtins');
 const globals = require('rollup-plugin-node-globals');
 const sourcemaps = require('rollup-plugin-sourcemaps');
 const vue = require('rollup-plugin-vue');
-const sass = require('rollup-plugin-sass');
+// const sass = require('rollup-plugin-sass');
 const scss = require('rollup-plugin-scss');
 const JSON5 = require('json5');
 
@@ -131,6 +132,11 @@ function createBrowserWatcher(inputFile, outputFile) {
         // defaultLang: { style: 'sass' },
         // css: false,
         needMap: false, // put this somewhere else ?
+      }),
+      alias({
+        entries: [
+          { find: '~', replacement: path.join(cwd, 'src') },
+        ],
       }),
       scss(),
       sourcemaps(),
