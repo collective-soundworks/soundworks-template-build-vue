@@ -15,8 +15,7 @@ const nodeBuiltins = require('rollup-plugin-node-builtins');
 const globals = require('rollup-plugin-node-globals');
 const sourcemaps = require('rollup-plugin-sourcemaps');
 const vue = require('rollup-plugin-vue');
-// const sass = require('rollup-plugin-sass');
-const scss = require('rollup-plugin-scss');
+const css = require('rollup-plugin-css-only');
 const JSON5 = require('json5');
 
 const cwd = process.cwd();
@@ -123,14 +122,11 @@ function createBrowserWatcher(inputFile, outputFile) {
       json(),
       nodeBuiltins(),
       globals({
-        // vue: 'Vue',
         buffer: false,
         dirname: false,
         filename: false,
       }),
       vue({
-        // defaultLang: { style: 'sass' },
-        // css: false,
         needMap: false, // put this somewhere else ?
       }),
       alias({
@@ -138,7 +134,7 @@ function createBrowserWatcher(inputFile, outputFile) {
           { find: '~', replacement: path.join(cwd, 'src') },
         ],
       }),
-      scss(),
+      css(),
       sourcemaps(),
     ],
     output: [
