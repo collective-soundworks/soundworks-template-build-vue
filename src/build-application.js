@@ -104,7 +104,7 @@ function bundleBrowser(inputFile, outputFile, watch, minify) {
       filename: path.basename(outputFile),
     },
     resolveLoader: {
-      modules: [path.join(__dirname, '..', 'node_modules')]
+      modules: ['node_modules', path.join(__dirname, '..', 'node_modules')],
     },
     resolve: {
       extensions: [ '.js', '.vue' ],
