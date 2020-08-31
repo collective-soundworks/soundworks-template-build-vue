@@ -1,188 +1,195 @@
 #!/usr/bin/env node
+const path = require('path');
 const babel = require('@babel/core');
 const chalk = require('chalk')
 const chokidar = require('chokidar');
 const fs = require('fs-extra');
-const path = require('path');
-const rollup = require('rollup');
-
-const alias = require('@rollup/plugin-alias');
-const commonjs = require('rollup-plugin-commonjs');
-const rollupBabel = require('rollup-plugin-babel');
-const resolve = require('rollup-plugin-node-resolve');
-const json = require('rollup-plugin-json');
-const nodeBuiltins = require('rollup-plugin-node-builtins');
-const globals = require('rollup-plugin-node-globals');
-const sourcemaps = require('rollup-plugin-sourcemaps');
-const vue = require('rollup-plugin-vue');
-// const css = require('rollup-plugin-css-only');
+const webpack = require('webpack');
 const JSON5 = require('json5');
+const klawSync = require('klaw-sync');
+const VueLoaderPlugin = require('vue-loader/lib/plugin');
 
 const cwd = process.cwd();
 
-const watchers = {
-  node: [],
-  browser: [],
-};
+// we need support for iOS 9.3.5
+const browserList = 'ios >= 9, not ie 11, not op_mini all';
 
-function closeWatchers() {
-  watchers.node.forEach(watcher => {
-    watcher.on('ready', () => {
-      watcher.close();
-    });
-  });
-
-  watchers.browser.forEach(watcher => {
-    watcher.on('event', e => {
-      if (e.code === 'END') {
-        watcher.close();
-      }
-    });
-  });
-}
-
-function createNodeProcessWatcher(inputFolder, outputFolder) {
+function bundleNode(inputFolder, outputFolder, watch) {
   function compileOrCopy(pathname) {
     if (fs.lstatSync(pathname).isDirectory()) {
-      return;
+      return Promise.resolve();
     }
 
-    const inputFilename = pathname;
-    const outputFilename = inputFilename.replace(inputFolder, outputFolder);
-    fs.ensureFileSync(outputFilename);
+    return new Promise((resolve, reject) => {
+      const inputFilename = pathname;
+      const outputFilename = inputFilename.replace(inputFolder, outputFolder);
+      fs.ensureFileSync(outputFilename);
 
-    if (/(\.js|\.mjs)$/.test(inputFilename)) {
-      babel.transformFile(inputFilename, {
-        inputSourceMap: true,
-        sourceMap: "inline",
-        plugins: [
-          ['@babel/plugin-transform-modules-commonjs'],
-          ['@babel/plugin-transform-arrow-functions'],
-          ['@babel/plugin-proposal-class-properties', { loose : true }]
-        ]
-      }, function (err, result) {
-        if (err) {
-          return console.log(err.message);
-        }
+      if (/(\.js|\.mjs)$/.test(inputFilename)) {
+        babel.transformFile(inputFilename, {
+          inputSourceMap: true,
+          sourceMap: "inline",
+          plugins: [
+            ['@babel/plugin-transform-modules-commonjs'],
+            ['@babel/plugin-transform-arrow-functions'],
+            ['@babel/plugin-proposal-class-properties', { loose : true }]
+          ]
+        }, function (err, result) {
+          if (err) {
+            return console.log(err.message);
+            reject();
+          }
 
-        fs.writeFileSync(outputFilename, result.code);
-        console.log(chalk.green(`> transpiled\t ${inputFilename}`));
+          resolve();
+          fs.writeFileSync(outputFilename, result.code);
+          console.log(chalk.green(`> transpiled\t ${inputFilename}`));
+        });
+      } else {
+        fs.copyFileSync(inputFilename, outputFilename);
+        console.log(chalk.green(`> copied\t ${inputFilename}`));
+        resolve();
       }
-    );
-    } else {
-      fs.copyFileSync(inputFilename, outputFilename);
-      console.log(chalk.green(`> copied\t ${inputFilename}`));
-    }
+    });
   }
 
-  const watcher = chokidar.watch(inputFolder);
+  if (!watch) {
+    const files = klawSync(inputFolder);
+    const relFiles = files.map(f => path.relative(process.cwd(), f.path));
+    const promises = relFiles.map(f => compileOrCopy(f));
+    return Promise.all(promises);
+  } else {
+    const chokidarOptions = watch ? { ignoreInitial: true } : {};
+    const watcher = chokidar.watch(inputFolder, chokidarOptions);
 
-  watcher.on('add', pathname => {
-    compileOrCopy(pathname);
-  });
+    watcher.on('add', pathname => compileOrCopy(pathname));
+    watcher.on('change', pathname => compileOrCopy(pathname));
+    watcher.on('unlink', pathname => {
+      const outputFilename = pathname.replace(inputFolder, outputFolder);
+      fs.unlinkSync(outputFilename);
+    });
 
-  watcher.on('change', pathname => {
-    compileOrCopy(pathname);
-  });
-
-  watcher.on('unlink', pathname => {
-    const outputFilename = pathname.replace(inputFolder, outputFolder);
-    fs.unlinkSync(outputFilename);
-  });
-
-  watchers.node.push(watcher);
+    return Promise.resolve();
+  }
 }
 
-function createBrowserWatcher(inputFile, outputFile) {
-  const watcher = rollup.watch({
-    input: inputFile,
-    plugins: [
-      commonjs(),
-      rollupBabel({
-        sourceMaps: true,
-        inputSourceMap: true,
-        sourceMap: "inline",
-        presets: [
-          ["@babel/preset-env",
-            {
-              targets: 'ios >= 9, not ie 11, not op_mini all'
-            }
-          ]
-        ],
-        plugins: [
-          // ['@babel/plugin-transform-modules-commonjs'],
-          ['@babel/plugin-transform-arrow-functions'],
-          ['@babel/plugin-proposal-class-properties', { loose : true }]
-        ]
-      }),
-      resolve({
-        mainFields: ['browser', 'module', 'main'],
-        preferBuiltins: false,
-      }),
-      json(),
-      nodeBuiltins(),
-      globals({
-        buffer: false,
-        dirname: false,
-        filename: false,
-      }),
-      vue({
-        needMap: false, // put this somewhere else ?
-      }),
-      alias({
-        entries: [
-          { find: '~', replacement: path.join(cwd, 'src') },
-        ],
-      }),
-      // css(),
-      sourcemaps(),
-    ],
-    output: [
+function bundleBrowser(inputFile, outputFile, watch, minify) {
+  let mode = 'development';
+  let devTools = 'eval-cheap-module-source-map';
+
+  const babelPresets = [
+    ['@babel/preset-env',
       {
-        file: outputFile,
-        format: 'iife',
-        sourcemap: 'inline',
-        onwarn(warning, warn) {
-          // skip certain warnings
-          if (warning.code === 'UNUSED_EXTERNAL_IMPORT') return;
-          // throw on others
-          if (warning.code === 'NON_EXISTENT_EXPORT') throw new Error(warning.message);
-          // Use default for everything else
-          warn(warning);
-        }
-      },
+        targets: browserList,
+      }
+    ]
+  ];
+
+  // production
+  if (minify) {
+    mode = 'production';
+    devTools = false;
+
+    babelPresets.push(['minify', {
+      builtIns: false,
+    }]);
+
+  }
+
+  const compiler = webpack({
+    mode: mode,
+    devtool: devTools,
+    entry: inputFile,
+    output: {
+      path: path.dirname(outputFile),
+      filename: path.basename(outputFile),
+    },
+    resolveLoader: {
+      modules: [path.join(__dirname, '..', 'node_modules')]
+    },
+    resolve: {
+      extensions: [ '.js', '.vue' ],
+      alias: {
+        // 'vue$': isDev ? 'vue/dist/vue.runtime.js' : 'vue/dist/vue.runtime.min.js',
+        '~': path.resolve(cwd, 'src'),
+      }
+    },    
+    module: {
+      rules: [
+        {
+          test: /\.(js|mjs)$/,
+          // 'exclude': /node_modules/,
+          use: {
+            loader: 'babel-loader',
+            options: {
+              presets: babelPresets,
+              plugins: [
+                // ['@babel/plugin-transform-modules-commonjs'],
+                ['@babel/plugin-transform-arrow-functions'],
+                ['@babel/plugin-proposal-class-properties', { loose : true }]
+              ],
+            }
+          }
+        },
+        {
+          test: /\.vue$/,
+          use: 'vue-loader',
+        },
+        // this will apply to both plain `.css` files
+        // AND `<style>` blocks in `.vue` files
+        {
+          test: /\.css$/,
+          use: [
+            'vue-style-loader',
+            'css-loader',
+          ],
+        },
+      ],
+    },
+    plugins: [
+      new VueLoaderPlugin(),
     ],
-    watch: {
-      chokidar: true,
-      clearScreen: false,
-    }
   });
 
-  watcher.on('event', (e) => {
-    if (e.code === 'BUNDLE_END') {
-      console.log(chalk.green(`> bundled\t ${outputFile.replace(cwd, '')}`));
-    } else if (e.code === 'ERROR') {
-      console.log(chalk.red(e.error.message));
-      console.log(e.error.frame);
-    } else if (e.code === 'FATAL') {
-      console.log(chalk.red(e.error.message));
-      console.log(e.error.frame);
-      closeWatchers();
-    }
-  });
+  if (!watch) {
+    return new Promise((resolve, reject) => {
+      compiler.run((err, stats) => {
+        if (err || stats.hasErrors()) {
+          console.log(stats.compilation.errors);
+        }
 
-  watchers.browser.push(watcher);
+        console.log(chalk.green(`> bundled\t ${outputFile.replace(cwd, '')}`));
+        resolve();
+      });
+    });
+  } else {
+    // we can't ignore initial build, so let's keep everything sequencial
+    return new Promise((resolve, reject) => {
+      const watching = compiler.watch({
+        aggregateTimeout: 300,
+        poll: undefined
+      }, (err, stats) => { // Stats Object
+        if (err || stats.hasErrors()) {
+          console.log(stats.compilation.errors);
+        }
+
+        console.log(chalk.green(`> bundled\t ${outputFile.replace(cwd, '')}`));
+        resolve();
+      });
+    });
+  }
 }
 
 
-module.exports = function buildApplication(watch = false) {
+module.exports = async function buildApplication(watch = false, minify = false) {
+  const cmdString = watch ? 'watching' : 'building';
   // -----------------------------------------
   // server files
   // -----------------------------------------
   {
+    console.log(chalk.yellow(`+ ${cmdString} server`));
     const configSrc = path.join('src', 'server');
     const configDist = path.join('.build', 'server');
-    createNodeProcessWatcher(configSrc, configDist);
+    await bundleNode(configSrc, configDist, watch);
   }
 
   // -----------------------------------------
@@ -214,28 +221,46 @@ module.exports = function buildApplication(watch = false) {
       const relPath = path.join(clientsSrc, filename);
       const isDir = fs.lstatSync(relPath).isDirectory();
       return isDir;
+    }).sort((a, b) => {
+      // we want to build the browsers files last
+      const aTarget = getClientTarget(a);
+      return (aTarget === 'browser') ? 1 : -1;
     });
 
-    clients.forEach(clientName => {
+    for (let clientName of clients) {
       const target = getClientTarget(clientName);
-      console.log(chalk.yellow(`+ building client "${clientName}" for ${target || 'undefined'} target`));
-      // thing clients or any shared/utils file
+
+      // IoT clients or any shared/utils file
       if (target !== 'browser') {
+        if (target === 'node') {
+          console.log(chalk.yellow(`+ ${cmdString} node client "${clientName}"`));
+        } else {
+          console.log(chalk.yellow(`+ ${cmdString} folder "${clientName}"`));
+        }
+
         const inputFolder = path.join('src', 'clients', clientName);
         const outputFolder = path.join('.build', clientName);
-        createNodeProcessWatcher(inputFolder, outputFolder);
+        await bundleNode(inputFolder, outputFolder, watch);
+
+      // regular browser clients
       } else {
+        console.log(chalk.yellow(`+ ${cmdString} browser client "${clientName}"`));
+
         const inputFile = path.join(cwd, 'src', 'clients', clientName, 'index.js');
         const outputFile = path.join(cwd, '.build', 'public', `${clientName}.js`);
-        createBrowserWatcher(inputFile, outputFile);
+        await bundleBrowser(inputFile, outputFile, watch);
+
+        if (minify) {
+          console.log(chalk.yellow(`+ minifying browser client "${clientName}"`));
+          const minOutputFile = path.join(cwd, '.build', 'public', `${clientName}.min.js`);
+          await bundleBrowser(inputFile, minOutputFile, false, true);
+        }
       }
-    });
+    }
   }
 
-  // if not watch, close all watchers
-  if (watch === false) {
-    closeWatchers();
-  }
+  process.on('SIGINT', function() {
+    console.log(chalk.cyan('\n>>> EXIT'))
+    process.exit();
+  });
 }
-
-

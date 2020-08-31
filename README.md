@@ -1,4 +1,3 @@
 # soundworks-template-build-vue
 
-#### todo's
- * create a simple soundworks example (test folder is not relevant yet)
+soundworks-template build scripts for use with Vuejs (see test example)
