@@ -7,31 +7,36 @@
   "license": "BSD-3-Clause",
   "version": "3.0.0-alpha.0",
   "scripts": {
-    "start": "node dist/server/index.js",
-    "prewatch": "npm run clean",
-    "watch": "npm run watch:build & sleep 5 && npm run watch:process-inspect server",
-    "build": "soundworks-template-build --build",
-    "clean": "soundworks-template-build --clean",
-    "minify": "soundworks-template-build --build && soundworks-template-build --minify",
-    "watch:process": "soundworks-template-build --watch-process",
-    "watch:process-inspect": "soundworks-template-build --watch-process-inspect",
-    "watch:build": "soundworks-template-build --build --watch"
+    "build": "npm run clean && soundworks-template-build -b",
+    "build:production": "npm run clean && soundworks-template-build -b -m",
+    "clean": "soundworks-template-build -c",
+    "watch-process": "soundworks-template-build -p",
+    "watch-process:inspect": "soundworks-template-build -i -p",
+    "dev": "npm run build && (npm run watch-process:inspect server & soundworks-template-build -b -w)",
+    "postinstall": "mkdir -p .vendors/public && cp -R node_modules/@webcomponents/webcomponentsjs .vendors/public",
+    "start": "node .build/server/index.js"
   },
   "repository": {
     "type": "git",
     "url": "https://github.com/collective-soundworks/soundworks-template"
   },
   "dependencies": {
-    "@babel/polyfill": "^7.4.4",
-    "@soundworks/core": "^3.0.0-alpha.1",
+    "@soundworks/core": "3.0.0-alpha.7",
+    "@soundworks/service-checkin": "0.0.1-alpha.2",
+    "@soundworks/service-platform": "0.0.1-alpha.3",
+    "@soundworks/template-helpers": "github:collective-soundworks/soundworks-template-helpers",
+    "@webcomponents/webcomponentsjs": "^2.4.3",
+    "core-js": "^3.6.5",
     "json5": "^2.1.0",
+    "lit-element": "^2.2.1",
     "lit-html": "^1.1.2",
+    "regenerator-runtime": "^0.13.7",
     "serve-static": "^1.14.1",
     "template-literal": "^1.0.3",
-    "vue": "^2.6.11",
-    "vuex": "^3.1.3"
+    "vue": "^2.6.12",
+    "vuex": "^3.5.1"
   },
   "devDependencies": {
-    "soundworks-template-build-vue": "github:collective-soundworks/soundworks-template-build-vue"
+    "soundworks-template-build-vue": "file:.."
   }
 }

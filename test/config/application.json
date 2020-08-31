@@ -6,13 +6,6 @@
     "player": {
       "target": "browser",
       "default": true
-    },
-    "controller": {
-      "target": "browser",
-      // "default": true
-    },
-    "thing": {
-      "target": "node",
     }
   },
 

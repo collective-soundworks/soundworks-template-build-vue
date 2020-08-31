@@ -1,5 +1,9 @@
 import { Experience } from '@soundworks/core/client';
-import { render, html } from 'lit-html';
+import Vue from 'vue';
+import store from './store';
+import Player from './Player.vue';
+import renderAppInitialization from '../views/renderAppInitialization';
+// import renderInitializationScreens from '@soundworks/template-helpers/client/render-initialization-screens.js';
 
 class PlayerExperience extends Experience {
   constructor(client, config = {}, $container) {
@@ -7,25 +11,26 @@ class PlayerExperience extends Experience {
 
     this.config = config;
     this.$container = $container;
+    this.rafId = null;
 
-    // require services
+    // require plugins if needed
+    this.require('platform');
+
+    renderAppInitialization(client, config, $container);
+    // renderInitializationScreens(client, config, $container);
   }
 
-  start() {
-    super.start();
+  async start() {
+    super.start(); // await ?
 
-    this.renderApp(`Hello ${this.client.id}`);
-  }
+    Vue.prototype.$experience = this;
 
-  renderApp(msg) {
-    render(html`
-      <div class="screen">
-        <section class="half-screen aligner">
-          <h1 class="title">${msg}</h1>
-        </section>
-        <section class="half-screen aligner"></section>
-      </div>
-    `, this.$container);
+    console.log('instanciating vue');
+    this.vue = new Vue({
+      store,
+      el: this.$container,
+      render: h => h(Player),
+    });
   }
 }
 
