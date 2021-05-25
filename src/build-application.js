@@ -32,7 +32,7 @@ function bundleNode(inputFolder, outputFolder, watch) {
           plugins: [
             ['@babel/plugin-transform-modules-commonjs'],
             ['@babel/plugin-transform-arrow-functions'],
-            ['@babel/plugin-proposal-class-properties', { loose : true }]
+            ['@babel/plugin-proposal-class-properties']
           ]
         }, function (err, result) {
           if (err) {
@@ -112,7 +112,7 @@ function bundleBrowser(inputFile, outputFile, watch, minify) {
         // 'vue$': isDev ? 'vue/dist/vue.runtime.js' : 'vue/dist/vue.runtime.min.js',
         '~': path.resolve(cwd, 'src'),
       }
-    },    
+    },
     module: {
       rules: [
         {
@@ -125,7 +125,7 @@ function bundleBrowser(inputFile, outputFile, watch, minify) {
               plugins: [
                 // ['@babel/plugin-transform-modules-commonjs'],
                 ['@babel/plugin-transform-arrow-functions'],
-                ['@babel/plugin-proposal-class-properties', { loose : true }]
+                ['@babel/plugin-proposal-class-properties']
               ],
             }
           }
